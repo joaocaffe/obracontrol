@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  body {
+    background: white !important;
+    font-size: 11pt;
+  }
+
+  nav,
+  aside,
+  button,
+  .no-print,
+  [role="button"],
+  .action-buttons,
+  input[type="month"],
+  .month-selector {
+    display: none !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .max-w-7xl {
+    max-width: none !important;
+  }
+
+  /* Specific improvements for Monthly Report */
+  .grid {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+  }
+
+  .grid>div {
+    flex: 1 !important;
+    border: 1px solid #e5e7eb !important;
+    padding: 10px !important;
+    border-radius: 8px !important;
+  }
+
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg {
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important;
+  }
+
+  th,
+  td {
+    border: 1px solid #f3f4f6 !important;
+    padding: 8px !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+}
