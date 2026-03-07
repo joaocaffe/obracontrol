@@ -12,6 +12,7 @@ interface SidebarProps {
 export function Sidebar({ activeTab, setActiveTab, isSidebarOpen, setIsSidebarOpen }: SidebarProps) {
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'planning', label: 'Planejamento', icon: CalendarDays },
         { id: 'stages', label: 'Etapas', icon: ListTodo },
         { id: 'labor', label: 'Mão de Obra', icon: Users },
         { id: 'materials', label: 'Materiais', icon: Hammer },

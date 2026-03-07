@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from './lib/supabase';
-import { ProjectData, Stage, LaborCost, MaterialCost, CreditCardExpense, CreditCard, Payment } from './types';
+import { ProjectData, Stage, LaborCost, MaterialCost, CreditCardExpense, CreditCard, Payment, PlanningItem } from './types';
 
 // Helper to convert snake_case to camelCase
 const toCamel = (obj: any): any => {
@@ -59,6 +59,14 @@ interface AppState extends ProjectData {
   addPayment: (payment: Omit<Payment, 'id'>) => Promise<{ error: any }>;
   updatePayment: (id: string, payment: Partial<Payment>) => Promise<{ error: any }>;
   deletePayment: (id: string) => Promise<{ error: any }>;
+
+  addPlanningItem: (item: Omit<PlanningItem, 'id' | 'totalValue'>) => Promise<{ error: any }>;
+  updatePlanningItem: (id: string, item: Partial<PlanningItem>) => Promise<{ error: any }>;
+  deletePlanningItem: (id: string) => Promise<{ error: any }>;
+
+  addPlanningType: (name: string) => Promise<{ error: any }>;
+  updatePlanningType: (oldName: string, newName: string) => Promise<{ error: any }>;
+  deletePlanningType: (name: string) => Promise<{ error: any }>;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -69,6 +77,8 @@ export const useStore = create<AppState>((set) => ({
   creditCards: [],
   creditCardExpenses: [],
   payments: [],
+  planningItems: [],
+  planningTypes: [],
   isLoading: false,
 
   fetchInitialData: async () => {
@@ -84,7 +94,9 @@ export const useStore = create<AppState>((set) => ({
         { data: materialCosts },
         { data: creditCards },
         { data: creditCardExpenses },
-        { data: payments }
+        { data: payments },
+        { data: planningItems },
+        { data: planningTypes }
       ] = await Promise.all([
         supabase.from('stages').select('*').order('start_date'),
         supabase.from('labor_costs').select('*'),
@@ -92,7 +104,9 @@ export const useStore = create<AppState>((set) => ({
         supabase.from('material_costs').select('*'),
         supabase.from('credit_cards').select('*'),
         supabase.from('credit_card_expenses').select('*'),
-        supabase.from('payments').select('*')
+        supabase.from('payments').select('*'),
+        supabase.from('planning_items').select('*').order('week_start_date'),
+        supabase.from('planning_types').select('name').order('name')
       ]);
 
       set({
@@ -103,6 +117,8 @@ export const useStore = create<AppState>((set) => ({
         creditCards: toCamel(creditCards || []),
         creditCardExpenses: toCamel(creditCardExpenses || []),
         payments: toCamel(payments || []),
+        planningItems: toCamel(planningItems || []),
+        planningTypes: (planningTypes || []).map(t => t.name),
       });
     } finally {
       set({ isLoading: false });
@@ -260,6 +276,65 @@ export const useStore = create<AppState>((set) => ({
   deletePayment: async (id) => {
     const { error } = await supabase.from('payments').delete().eq('id', id);
     if (!error) set(state => ({ payments: state.payments.filter(p => p.id !== id) }));
+    return { error };
+  },
+
+  addPlanningItem: async (item) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+    const { data, error } = await supabase.from('planning_items').insert(toSnake({ ...item, userId: user.id })).select().single();
+    if (!error && data) set(state => ({ planningItems: [...state.planningItems, toCamel(data)] }));
+    return { error };
+  },
+  updatePlanningItem: async (id, item) => {
+    const { data, error } = await supabase.from('planning_items').update(toSnake(item)).eq('id', id).select().single();
+    if (!error && data) set(state => ({ planningItems: state.planningItems.map(i => i.id === id ? toCamel(data) : i) }));
+    return { error };
+  },
+  deletePlanningItem: async (id) => {
+    const { error } = await supabase.from('planning_items').delete().eq('id', id);
+    if (!error) set(state => ({ planningItems: state.planningItems.filter(i => i.id !== id) }));
+    return { error };
+  },
+
+  addPlanningType: async (name) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+    const { error } = await supabase.from('planning_types').insert({ name, user_id: user.id });
+    if (!error) set(state => ({ planningTypes: [...state.planningTypes, name].sort() }));
+    return { error };
+  },
+
+  updatePlanningType: async (oldName, newName) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Unauthorized' };
+
+    const { error: typeError } = await supabase
+      .from('planning_types')
+      .update({ name: newName })
+      .eq('name', oldName)
+      .eq('user_id', user.id);
+
+    if (typeError) return { error: typeError };
+
+    const { error: itemError } = await supabase
+      .from('planning_items')
+      .update({ type: newName })
+      .eq('type', oldName)
+      .eq('user_id', user.id);
+
+    if (!itemError) {
+      set(state => ({
+        planningTypes: state.planningTypes.map(t => t === oldName ? newName : t).sort(),
+        planningItems: state.planningItems.map(i => i.type === oldName ? { ...i, type: newName } : i)
+      }));
+    }
+    return { error: itemError };
+  },
+
+  deletePlanningType: async (name) => {
+    const { error } = await supabase.from('planning_types').delete().eq('name', name);
+    if (!error) set(state => ({ planningTypes: state.planningTypes.filter(t => t !== name) }));
     return { error };
   },
 }));

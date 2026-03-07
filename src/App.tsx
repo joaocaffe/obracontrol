@@ -9,6 +9,7 @@ import { CreditCards } from './components/CreditCards';
 import { Payments } from './components/Payments';
 import { MonthlySummary } from './components/MonthlySummary';
 import { Auth } from './components/Auth';
+import { Planning } from './components/Planning';
 import { supabase } from './lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { useStore } from './store';
@@ -59,6 +60,8 @@ export default function App() {
         return <MonthlySummary />;
       case 'gantt':
         return <Gantt />;
+      case 'planning':
+        return <Planning />;
       default:
         return <Dashboard />;
     }

@@ -79,6 +79,17 @@ export interface Payment {
   isHidden?: boolean;
 }
 
+export interface PlanningItem {
+  id: string;
+  weekStartDate: string;
+  type: string;
+  description: string;
+  quantity: number;
+  unitValue: number;
+  totalValue: number;
+  paymentDate?: string;
+}
+
 export interface ProjectData {
   stages: Stage[];
   laborCosts: LaborCost[];
@@ -87,4 +98,6 @@ export interface ProjectData {
   creditCards: CreditCard[];
   creditCardExpenses: CreditCardExpense[];
   payments: Payment[];
+  planningItems: PlanningItem[];
+  planningTypes: string[];
 }
