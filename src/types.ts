@@ -90,6 +90,27 @@ export interface PlanningItem {
   paymentDate?: string;
 }
 
+export interface ListItem {
+  id: string;
+  userId: string;
+  name: string;
+  position: number;
+  createdAt: string;
+}
+
+export interface ListSubitem {
+  id: string;
+  itemId: string;
+  description: string;
+  value: number;
+  quantity: number;
+  paymentMethod: string;
+  observation: string;
+  position: number;
+  createdAt: string;
+  userId: string;
+}
+
 export interface ProjectData {
   stages: Stage[];
   laborCosts: LaborCost[];
@@ -100,4 +121,6 @@ export interface ProjectData {
   payments: Payment[];
   planningItems: PlanningItem[];
   planningTypes: string[];
+  listItems: ListItem[];
+  listSubitems: ListSubitem[];
 }

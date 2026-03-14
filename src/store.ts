@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from './lib/supabase';
-import { ProjectData, Stage, LaborCost, MaterialCost, CreditCardExpense, CreditCard, Payment, PlanningItem } from './types';
+import { ProjectData, Stage, LaborCost, MaterialCost, CreditCardExpense, CreditCard, Payment, PlanningItem, ListItem, ListSubitem } from './types';
 
 // Helper to convert snake_case to camelCase
 const toCamel = (obj: any): any => {
@@ -67,9 +67,20 @@ interface AppState extends ProjectData {
   addPlanningType: (name: string) => Promise<{ error: any }>;
   updatePlanningType: (oldName: string, newName: string) => Promise<{ error: any }>;
   deletePlanningType: (name: string) => Promise<{ error: any }>;
+
+  addListItem: (item: Omit<ListItem, 'id' | 'userId' | 'position' | 'createdAt'>) => Promise<{ error: any }>;
+  updateListItem: (id: string, item: Partial<ListItem>) => Promise<{ error: any }>;
+  deleteListItem: (id: string) => Promise<{ error: any }>;
+
+  addListSubitem: (subitem: Omit<ListSubitem, 'id' | 'userId' | 'position' | 'createdAt'>) => Promise<{ error: any }>;
+  updateListSubitem: (id: string, subitem: Partial<ListSubitem>) => Promise<{ error: any }>;
+  deleteListSubitem: (id: string) => Promise<{ error: any }>;
+
+  reorderListItems: (id1: string, id2: string) => Promise<{ error: any }>;
+  reorderListSubitems: (id1: string, id2: string) => Promise<{ error: any }>;
 }
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>((set, get) => ({
   stages: [],
   laborCosts: [],
   laborRoles: [],
@@ -79,6 +90,8 @@ export const useStore = create<AppState>((set) => ({
   payments: [],
   planningItems: [],
   planningTypes: [],
+  listItems: [],
+  listSubitems: [],
   isLoading: false,
 
   fetchInitialData: async () => {
@@ -96,7 +109,9 @@ export const useStore = create<AppState>((set) => ({
         { data: creditCardExpenses },
         { data: payments },
         { data: planningItems },
-        { data: planningTypes }
+        { data: planningTypes },
+        { data: listItems },
+        { data: listSubitems }
       ] = await Promise.all([
         supabase.from('stages').select('*').order('start_date'),
         supabase.from('labor_costs').select('*'),
@@ -106,7 +121,9 @@ export const useStore = create<AppState>((set) => ({
         supabase.from('credit_card_expenses').select('*'),
         supabase.from('payments').select('*'),
         supabase.from('planning_items').select('*').order('week_start_date'),
-        supabase.from('planning_types').select('name').order('name')
+        supabase.from('planning_types').select('name').order('name'),
+        supabase.from('list_items').select('*').order('position'),
+        supabase.from('list_subitems').select('*').order('position')
       ]);
 
       set({
@@ -119,6 +136,8 @@ export const useStore = create<AppState>((set) => ({
         payments: toCamel(payments || []),
         planningItems: toCamel(planningItems || []),
         planningTypes: (planningTypes || []).map(t => t.name),
+        listItems: toCamel(listItems || []),
+        listSubitems: toCamel(listSubitems || []),
       });
     } finally {
       set({ isLoading: false });
@@ -335,6 +354,97 @@ export const useStore = create<AppState>((set) => ({
   deletePlanningType: async (name) => {
     const { error } = await supabase.from('planning_types').delete().eq('name', name);
     if (!error) set(state => ({ planningTypes: state.planningTypes.filter(t => t !== name) }));
+    return { error };
+  },
+
+  addListItem: async (item) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+    const { listItems } = get() as AppState;
+    const maxPos = listItems.length > 0 ? Math.max(...listItems.map(i => i.position)) : 0;
+    const { data, error } = await supabase.from('list_items').insert(toSnake({ ...item, userId: user.id, position: maxPos + 1 })).select().single();
+    if (!error && data) set(state => ({ listItems: [...state.listItems, toCamel(data)].sort((a, b) => a.position - b.position) }));
+    return { error };
+  },
+  updateListItem: async (id, item) => {
+    const { data, error } = await supabase.from('list_items').update(toSnake(item)).eq('id', id).select().single();
+    if (!error && data) set(state => ({ listItems: state.listItems.map(i => i.id === id ? toCamel(data) : i) }));
+    return { error };
+  },
+  deleteListItem: async (id) => {
+    const { error } = await supabase.from('list_items').delete().eq('id', id);
+    if (!error) set(state => ({
+      listItems: state.listItems.filter(i => i.id !== id),
+      listSubitems: state.listSubitems.filter(s => s.itemId !== id)
+    }));
+    return { error };
+  },
+
+  addListSubitem: async (subitem) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+    const { listSubitems } = get() as AppState;
+    const itemSubitems = listSubitems.filter(s => s.itemId === subitem.itemId);
+    const maxPos = itemSubitems.length > 0 ? Math.max(...itemSubitems.map(s => s.position)) : 0;
+    const { data, error } = await supabase.from('list_subitems').insert(toSnake({ ...subitem, userId: user.id, position: maxPos + 1 })).select().single();
+    if (!error && data) set(state => ({ listSubitems: [...state.listSubitems, toCamel(data)].sort((a, b) => a.position - b.position) }));
+    return { error };
+  },
+  updateListSubitem: async (id, subitem) => {
+    const { data, error } = await supabase.from('list_subitems').update(toSnake(subitem)).eq('id', id).select().single();
+    if (!error && data) set(state => ({ listSubitems: state.listSubitems.map(s => s.id === id ? toCamel(data) : s) }));
+    return { error };
+  },
+  reorderListItems: async (id1, id2) => {
+    const { listItems } = get();
+    const item1 = listItems.find(i => i.id === id1);
+    const item2 = listItems.find(i => i.id === id2);
+    if (!item1 || !item2) return { error: 'Items not found' };
+
+    const pos1 = item1.position;
+    const pos2 = item2.position;
+
+    const { error: error1 } = await supabase.from('list_items').update({ position: pos2 }).eq('id', id1);
+    const { error: error2 } = await supabase.from('list_items').update({ position: pos1 }).eq('id', id2);
+
+    if (!error1 && !error2) {
+      set(state => ({
+        listItems: state.listItems.map(i => {
+          if (i.id === id1) return { ...i, position: pos2 };
+          if (i.id === id2) return { ...i, position: pos1 };
+          return i;
+        }).sort((a, b) => a.position - b.position)
+      }));
+    }
+    return { error: error1 || error2 };
+  },
+
+  reorderListSubitems: async (id1, id2) => {
+    const { listSubitems } = get();
+    const sub1 = listSubitems.find(s => s.id === id1);
+    const sub2 = listSubitems.find(s => s.id === id2);
+    if (!sub1 || !sub2) return { error: 'Sub-items not found' };
+
+    const pos1 = sub1.position;
+    const pos2 = sub2.position;
+
+    const { error: error1 } = await supabase.from('list_subitems').update({ position: pos2 }).eq('id', id1);
+    const { error: error2 } = await supabase.from('list_subitems').update({ position: pos1 }).eq('id', id2);
+
+    if (!error1 && !error2) {
+      set(state => ({
+        listSubitems: state.listSubitems.map(s => {
+          if (s.id === id1) return { ...s, position: pos2 };
+          if (s.id === id2) return { ...s, position: pos1 };
+          return s;
+        }).sort((a, b) => a.position - b.position)
+      }));
+    }
+    return { error: error1 || error2 };
+  },
+  deleteListSubitem: async (id) => {
+    const { error } = await supabase.from('list_subitems').delete().eq('id', id);
+    if (!error) set(state => ({ listSubitems: state.listSubitems.filter(s => s.id !== id) }));
     return { error };
   },
 }));
